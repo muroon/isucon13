@@ -127,7 +127,7 @@ func initializeHandler(c echo.Context) error {
 }
 
 func main() {
-	datadogServiceName := "isucon13-app" // TODO: 要変更
+	datadogServiceName := "isucon14-app" // isucon-14用
 
 	// Start Datadog tracer
 	tracer.Start(
