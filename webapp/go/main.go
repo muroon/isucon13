@@ -14,7 +14,6 @@ import (
 
 	"github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
-	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 
 	sqlxtrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/jmoiron/sqlx"
@@ -128,9 +127,11 @@ func initializeHandler(c echo.Context) error {
 }
 
 func main() {
+	datadogServiceName := "isucon13-app" // TODO: 要変更
+
 	// Start Datadog tracer
 	tracer.Start(
-		tracer.WithServiceName("isucon13-app"),
+		tracer.WithServiceName(datadogServiceName),
 		tracer.WithEnv("production"), // Set the appropriate environment
 		tracer.WithAgentAddr("localhost:8126"),
 	)
@@ -140,7 +141,7 @@ func main() {
 	e.Debug = true
 	e.Logger.SetLevel(echolog.DEBUG)
 	e.Use(middleware.Logger())
-	e.Use(echoTrace.Middleware(echoTrace.WithServiceName("isucon13-app"))) // Enable tracing middleware
+	e.Use(echoTrace.Middleware(echoTrace.WithServiceName(datadogServiceName))) // Enable tracing middleware
 	cookieStore := sessions.NewCookieStore(secret)
 	cookieStore.Options.Domain = "*.u.isucon.dev"
 	e.Use(session.Middleware(cookieStore))
