@@ -17,6 +17,11 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 
+	sqlxtrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/jmoiron/sqlx"
+	echoTrace "gopkg.in/DataDog/dd-trace-go.v1/contrib/labstack/echo.v4"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/ext"
+	"gopkg.in/DataDog/dd-trace-go.v1/ddtrace/tracer"
+
 	"github.com/gorilla/sessions"
 	"github.com/labstack/echo-contrib/session"
 	echolog "github.com/labstack/gommon/log"
@@ -93,7 +98,7 @@ func connectDB(logger echo.Logger) (*sqlx.DB, error) {
 		conf.ParseTime = parseTime
 	}
 
-	db, err := sqlx.Open("mysql", conf.FormatDSN())
+	db, err := sqlxtrace.Open("mysql", conf.FormatDSN()) // Use Datadog tracer
 	if err != nil {
 		return nil, err
 	}
@@ -107,8 +112,12 @@ func connectDB(logger echo.Logger) (*sqlx.DB, error) {
 }
 
 func initializeHandler(c echo.Context) error {
+	span, _ := tracer.StartSpanFromContext(c.Request().Context(), "initializeHandler")
+	defer span.Finish()
+
 	if out, err := exec.Command("../sql/init.sh").CombinedOutput(); err != nil {
 		c.Logger().Warnf("init.sh failed with err=%s", string(out))
+		span.SetTag(ext.Error, err)
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to initialize: "+err.Error())
 	}
 
@@ -119,10 +128,19 @@ func initializeHandler(c echo.Context) error {
 }
 
 func main() {
+	// Start Datadog tracer
+	tracer.Start(
+		tracer.WithServiceName("isucon13-app"),
+		tracer.WithEnv("production"), // Set the appropriate environment
+		tracer.WithAgentAddr("localhost:8126"),
+	)
+	defer tracer.Stop()
+
 	e := echo.New()
 	e.Debug = true
 	e.Logger.SetLevel(echolog.DEBUG)
 	e.Use(middleware.Logger())
+	e.Use(echoTrace.Middleware(echoTrace.WithServiceName("isucon13-app"))) // Enable tracing middleware
 	cookieStore := sessions.NewCookieStore(secret)
 	cookieStore.Options.Domain = "*.u.isucon.dev"
 	e.Use(session.Middleware(cookieStore))
